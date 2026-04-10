@@ -213,24 +213,34 @@ export class DiscordService extends Service implements IDiscordService {
 	private async refreshOwnerDiscordUserIds(
 		client: DiscordJsClient,
 	): Promise<void> {
-		const configuredOwnerIds = parseDiscordOwnerUserIds(
-			this.runtime.getSetting?.("MILADY_DISCORD_OWNER_USER_IDS_JSON"),
+		const explicitSetting = this.runtime.getSetting?.(
+			"MILADY_DISCORD_OWNER_USER_IDS_JSON",
 		);
-		const application =
-			client.application && typeof client.application.fetch === "function"
-				? await client.application.fetch()
-				: client.application;
-		const ownerIds = [
-			...new Set([
-				...configuredOwnerIds,
-				...extractDiscordOwnerUserIds(application),
-			]),
-		];
+		const hasExplicitSetting =
+			typeof explicitSetting === "string" && explicitSetting.trim().length > 0;
+
+		let ownerIds: string[];
+		if (hasExplicitSetting) {
+			// When the deployer explicitly sets MILADY_DISCORD_OWNER_USER_IDS_JSON
+			// (even to an empty array), respect it as the full owner list. The
+			// auto-detected discord application owner is only a fallback for
+			// deployments that haven't pinned the canonical owner mapping themselves.
+			// This avoids surprising remap-to-admin-entity behavior for users whose
+			// discord account happens to own the bot's application.
+			ownerIds = parseDiscordOwnerUserIds(explicitSetting);
+		} else {
+			const application =
+				client.application && typeof client.application.fetch === "function"
+					? await client.application.fetch()
+					: client.application;
+			ownerIds = [...new Set(extractDiscordOwnerUserIds(application))];
+		}
+
+		this.ownerDiscordUserIds = new Set(ownerIds);
 		if (ownerIds.length === 0) {
 			return;
 		}
 
-		this.ownerDiscordUserIds = new Set(ownerIds);
 		const existingWhitelist = getConnectorAdminWhitelist(this.runtime);
 		const nextDiscordAdmins = [
 			...new Set([...(existingWhitelist.discord ?? []), ...ownerIds]),
@@ -241,6 +251,7 @@ export class DiscordService extends Service implements IDiscordService {
 			...existingWhitelist,
 			discord: nextDiscordAdmins,
 		});
+
 		this.runtime.logger.info(
 			{
 				src: "plugin:discord",
