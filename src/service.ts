@@ -206,7 +206,7 @@ export class DiscordService extends Service implements IDiscordService {
     const rawToken =
       (runtime.getSetting('DISCORD_API_TOKEN') as string) ||
       (runtime.getSetting('DISCORD_BOT_TOKENS') as string);
-    const token = rawToken?.trim() || '';
+    const token = rawToken?.trim();
     if (!token) {
       this.runtime.logger.warn('Discord Bot Token not provided - Discord functionality will be unavailable');
       this.runtime.logger.warn('Set DISCORD_API_TOKEN or DISCORD_BOT_TOKENS in your .env file to enable Discord');
