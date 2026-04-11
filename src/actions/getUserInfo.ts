@@ -9,18 +9,11 @@ import {
   type State,
   composePromptFromState,
   parseJSONObjectFromText,
+  createUniqueUuid,
 } from "@elizaos/core";
 import { DiscordService } from "../service";
 import { DISCORD_SERVICE_NAME } from "../constants";
-import { type Guild, type GuildMember, type GuildChannel } from "discord.js";
-
-/**
- * Check if a string looks like a Discord snowflake ID (all digits, 17-20 chars)
- * UUIDs contain hyphens and letters, snowflakes are pure numeric
- */
-function isDiscordSnowflake(id: string | undefined): boolean {
-  if (!id) return false;
-  return /^\d{17,20}$/.test(id);
+import { isDiscordSnowflake } from "../utils";
 }
 
 /**
