@@ -63,12 +63,27 @@ async function scrubBase64ImagesFromMemories(runtime: IAgentRuntime): Promise<vo
   try {
     runtime.logger.info({ src: 'plugin:discord' }, 'Checking for base64 images in memories...');
 
-    // Get recent memories that might have base64 attachments
-    // We check the last 1000 messages as a reasonable limit
-    const memories = await runtime.getMemories({
-      tableName: 'messages',
-      count: 1000,
-    });
+    // Note: getMemories requires roomId scope. We search across all known rooms
+    // by getting rooms first and then checking their memories.
+    const rooms = await runtime.getRooms();
+    if (!rooms || rooms.length === 0) {
+      runtime.logger.debug({ src: 'plugin:discord' }, 'No rooms found, skipping base64 scrub');
+      return;
+    }
+
+    const memories: Memory[] = [];
+    for (const room of rooms.slice(0, 100)) { // Limit to first 100 rooms to avoid overload
+      try {
+        const roomMemories = await runtime.getMemories({
+          roomId: room.id,
+          tableName: 'messages',
+          count: 10, // Get last 10 per room
+        });
+        memories.push(...roomMemories);
+      } catch {
+        // Skip rooms that fail to fetch
+      }
+    }
 
     let scrubbed = 0;
 
