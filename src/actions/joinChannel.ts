@@ -13,10 +13,10 @@ import {
 } from "@elizaos/core";
 import { DiscordService } from "../service";
 import { DISCORD_SERVICE_NAME } from "../constants";
-import type { TextChannel, BaseGuildVoiceChannel, GuildChannel, Guild } from "discord.js";
+import type { TextChannel, BaseGuildVoiceChannel } from "discord.js";
 import { ChannelType as DiscordChannelType } from "discord.js";
 import type { VoiceManager } from "../voice";
-import { isDiscordSnowflake, getGuildFromRoom } from "../utils";
+import { getGuildFromRoom } from "../utils";
 
 /**
  * Template for extracting channel information from the user's request to join a channel.
@@ -83,43 +83,6 @@ const getJoinChannelInfo = async (
   return null;
 };
 
-// Note: getGuildFromRoom is imported from ../utils
-
-// Local wrapper to maintain API compatibility
-async function getGuildFromRoomLocal(
-  discordService: DiscordService,
-  channelId?: string,
-  messageServerId?: string,
-): Promise<Guild | null> => {
-  if (!discordService.client) return null;
-  
-  // Primary path: Use channelId to find the guild
-  if (channelId) {
-    let channel = discordService.client.channels.cache.get(channelId) as GuildChannel | undefined;
-    if (!channel) {
-      try {
-        channel = await discordService.client.channels.fetch(channelId) as GuildChannel | undefined;
-      } catch {
-        // Channel fetch failed
-      }
-    }
-    if (channel?.guild) {
-      return channel.guild;
-    }
-  }
-
-  // Backwards compatibility: If channelId didn't work, try messageServerId
-  // Only if it looks like a Discord snowflake (not a UUID)
-  if (isDiscordSnowflake(messageServerId)) {
-    try {
-      return await discordService.client.guilds.fetch(messageServerId);
-    } catch {
-      // Guild fetch failed
-    }
-  }
-
-  return null;
-};
 
 /**
  * Find a Discord channel by various identifiers

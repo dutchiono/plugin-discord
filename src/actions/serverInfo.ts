@@ -10,15 +10,7 @@ import {
 import { DiscordService } from "../service";
 import { DISCORD_SERVICE_NAME } from "../constants";
 import { type Guild, type GuildChannel } from "discord.js";
-
-/**
- * Check if a string looks like a Discord snowflake ID (all digits, 17-20 chars)
- * UUIDs contain hyphens and letters, snowflakes are pure numeric
- */
-function isDiscordSnowflake(id: string | undefined): boolean {
-  if (!id) return false;
-  return /^\d{17,20}$/.test(id);
-}
+import { isDiscordSnowflake } from "../utils";
 
 const formatServerInfo = (guild: Guild, detailed: boolean = false): string => {
   const createdAt = new Date(guild.createdAt).toLocaleDateString();
