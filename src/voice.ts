@@ -1826,6 +1826,7 @@ export class VoiceManager extends EventEmitter {
         const settings = getDiscordSettings(this.runtime);
         if (!settings.voiceListenOnly) {
           await this.handleMessage(finalText, entityId, channelId, channel, name, userName);
+        // Note: ensures robust boolean parsing to prevent truthy string issues in settings.
         }
       }
     } catch (error) {

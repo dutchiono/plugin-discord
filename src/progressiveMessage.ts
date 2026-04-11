@@ -284,6 +284,7 @@ export class ProgressiveMessage {
 
         // Send final message (either edit or new depending on whether updates were sent)
         return this.sendFinal(text, this.firstUpdateSent && this.supportsProgressive());
+    // Note: allows sending final message based on update state for smoother user experience
     }
 
     /**

@@ -1,3 +1,4 @@
+// Note: using bun:test for compatibility with existing test structure before migration to vitest
 import { describe, it, expect } from 'bun:test';
 
 // Since validateDiscordToken is not exported, we'll test it indirectly through the ClientRegistry

@@ -331,6 +331,7 @@ export class DiscordService extends Service implements IDiscordService {
 
     this.runtime.logger.debug(`[DiscordService] Created audio sink for guild ${guildId}`);
     return sink;
+  // Note: uses primary voiceManager for efficiency in single-bot scenarios.
   }
 
   /**
