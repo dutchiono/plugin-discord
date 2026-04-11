@@ -193,10 +193,16 @@ export class DiscordClientRegistry {
       }
 
       // Destroy the client to release resources (REST client, caches, WebSocket)
-      client.destroy();
-      this.clients.delete(tempId);
-      this.loginPromises.delete(tempId);
-      throw error;
+      // Login failed - clean up
+            // Destroy the client to release resources (REST client, caches, partial WebSocket connections)
+            try {
+              client.destroy();
+            } catch (destroyError) {
+              logger.debug(`[ClientRegistry] Error destroying client after failed login: ${destroyError}`);
+            }
+            this.clients.delete(tempId);
+            logger.error(`[ClientRegistry] Failed to register bot '${tempId}': ${error}`);
+            throw error;
     }
 
     return clientInfo;
