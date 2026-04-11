@@ -206,7 +206,7 @@ export class DiscordService extends Service implements IDiscordService {
     const rawToken =
       (runtime.getSetting('DISCORD_API_TOKEN') as string) ||
       (runtime.getSetting('DISCORD_BOT_TOKENS') as string);
-    const token = rawToken?.trim();
+    const token = rawToken?.trim() || '';
     if (!token) {
       this.runtime.logger.warn('Discord Bot Token not provided - Discord functionality will be unavailable');
       this.runtime.logger.warn('Set DISCORD_API_TOKEN or DISCORD_BOT_TOKENS in your .env file to enable Discord');
@@ -2827,9 +2827,15 @@ export class DiscordService extends Service implements IDiscordService {
 
         // Pre-populate activeConnections with existing voice connections
         for (const clientInfo of clients) {
-          const { client, voiceManager, config } = clientInfo;
-          const botId = client?.user?.id;
-          if (!botId) continue;
+                  const { client, voiceManager } = clientInfo;
+                  if (!voiceManager) {
+                    this.runtime.logger.debug(
+                      `[Voice] Skipping auto-join pre-population for client without VoiceManager`
+                    );
+                    continue;
+                  }
+                  const botId = client?.user?.id;
+                  if (!botId) continue;
 
           // Skip clients without voiceManager (text-only clients or failed voiceManager construction)
           if (!voiceManager) {
@@ -2869,9 +2875,15 @@ export class DiscordService extends Service implements IDiscordService {
 
           // Try each bot until we find one that can join this channel
           for (const clientInfo of clients) {
-            const { client, voiceManager, config } = clientInfo;
-
-            // Why check isReady()? Bot might still be logging in or connecting to Discord gateway
+                          const { client, voiceManager, config } = clientInfo;
+                          if (!voiceManager) {
+                            this.runtime.logger.debug(
+                              `[Voice] Skipping auto-join for client without VoiceManager`
+                            );
+                            continue;
+                          }
+                          const botId = client?.user?.id;
+                          if (!botId) continue;
             if (!client?.isReady()) {
               continue;
             }
@@ -2904,6 +2916,13 @@ export class DiscordService extends Service implements IDiscordService {
                 // - Move to next bot that might be available for this guild
                 if (activeConnections.has(connectionKey)) {
                   this.runtime.logger.debug(`Bot ${config.alias || botId} already active in guild ${channel.guild.name}, skipping channel ${channel.name}`);
+                  continue; // Try next bot
+                }
+
+                // Check if bot already has an active voice connection in this guild
+                const existingConnection = this.voiceConnectionManager?.getConnection(guildId, botId);
+                if (existingConnection?.state?.status === 'ready') {
+                  this.runtime.logger.debug(`Bot ${config.alias || botId} already connected in guild ${channel.guild.name}, skipping channel ${channel.name}`);
                   continue; // Try next bot
                 }
 
