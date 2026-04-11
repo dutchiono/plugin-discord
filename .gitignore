@@ -3,3 +3,5 @@ node_modules
 .env
 .elizadb
 .turbo
+# prr state file (auto-generated)
+.pr-resolver-state.json

@@ -218,14 +218,14 @@ feed(stream: Readable) {
 
 ### External Package (plugin-music-player)
 
-> **Note**: The following files are located in `packages/plugin-music-player/` within the monorepo.
+> **Note**: The following patterns are implemented in the separate `plugin-music-player` package within the ElizaOS monorepo (`packages/plugin-music-player/`). See that package's documentation for details.
 
-| Pattern | File |
-|---------|------|
-| IAudioBroadcast | `packages/plugin-music-player/src/contracts.ts` |
-| Auto-wiring | `packages/plugin-music-player/src/service.ts` |
-| Multiplexing | `packages/plugin-music-player/src/core/streamMultiplexer.ts` |
-| Silence injection | `packages/plugin-music-player/src/core/streamCore.ts` |
+| Pattern | Location |
+|---------|----------|
+| IAudioBroadcast | plugin-music-player `src/contracts.ts` |
+| Auto-wiring | plugin-music-player `src/service.ts` |
+| Multiplexing | plugin-music-player `src/core/streamMultiplexer.ts` |
+| Silence injection | plugin-music-player `src/core/streamCore.ts` |
 
 ## Related Documentation
 
