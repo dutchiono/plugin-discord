@@ -218,10 +218,14 @@ function getCharacterEmojiPreferences(runtime: IAgentRuntime): {
 }
 
 /**
- * Select an emoji based on character preferences and message sentiment.
- * Returns null if character forbids emojis or no suitable emoji found.
+ * Select an emoji based on character preferences and message sentiment
+ * Returns null if character forbids emojis or no suitable emoji found
  */
-function selectCharacterEmoji(
+const selectCharacterEmoji = (runtime: IAgentRuntime, text: string): string | null => {
+  // Check if character forbids all emojis first
+  if (characterForbidsEmojis(runtime)) {
+    return null;
+  }
   runtime: IAgentRuntime,
   messageText: string
 ): string | null {
