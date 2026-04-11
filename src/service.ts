@@ -3013,6 +3013,11 @@ export class DiscordService extends Service implements IDiscordService {
       } catch (error) {
         this.runtime.logger.error(`Error in auto-join process: ${error instanceof Error ? error.message : String(error)}`);
       }
+      // Remove from tracking array after execution
+      const index = this.timeouts.indexOf(autoJoinTimeout);
+      if (index > -1) {
+        this.timeouts.splice(index, 1);
+      }
     }, 5000);
     // Track timeout for cleanup on service stop
     this.timeouts.push(autoJoinTimeout);
