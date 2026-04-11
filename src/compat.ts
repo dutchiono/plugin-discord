@@ -22,43 +22,53 @@ import type { IAgentRuntime, UUID, World, Room, ChannelType, Entity } from '@eli
  * These allow TypeScript to accept messageServerId in object literals.
  */
 export type WorldCompat = Omit<World, 'serverId'> & {
-    serverId?: string;
-    messageServerId?: UUID;
+  serverId?: string;
+  messageServerId?: UUID;
 };
 
 export type RoomCompat = Omit<Room, 'serverId'> & {
-    serverId?: string;
-    messageServerId?: UUID;
+  serverId?: string;
+  messageServerId?: UUID;
 };
 
 export interface EnsureConnectionParams {
-    entityId: UUID;
-    roomId: UUID;
-    userName?: string;
-    name?: string;
-    worldName?: string;
-    source?: string;
-    channelId?: string;
-    serverId?: string;
-    messageServerId?: UUID;
-    type?: ChannelType | string;
-    worldId: UUID;
-    userId?: UUID;
-    metadata?: Record<string, unknown>;
+  entityId: UUID;
+  roomId: UUID;
+  userName?: string;
+  name?: string;
+  worldName?: string;
+  source?: string;
+  channelId?: string;
+  serverId?: string;
+  messageServerId?: UUID;
+  type?: ChannelType | string;
+  worldId: UUID;
+  userId?: UUID;
+  metadata?: Record<string, unknown>;
 }
 
 /**
  * Extended runtime interface that accepts messageServerId in method parameters.
  */
-export interface ICompatRuntime extends Omit<IAgentRuntime, 'ensureWorldExists' | 'ensureRoomExists' | 'ensureConnection' | 'ensureConnections'> {
-    ensureWorldExists(world: WorldCompat): Promise<void>;
-    ensureRoomExists(room: RoomCompat): Promise<void>;
-    ensureConnection(params: EnsureConnectionParams): Promise<void>;
-    ensureConnections(entities: Entity[], rooms: RoomCompat[], source: string, world: WorldCompat): Promise<void>;
+export interface ICompatRuntime extends Omit<
+  IAgentRuntime,
+  'ensureWorldExists' | 'ensureRoomExists' | 'ensureConnection' | 'ensureConnections'
+> {
+  ensureWorldExists(world: WorldCompat): Promise<void>;
+  ensureRoomExists(room: RoomCompat): Promise<void>;
+  ensureConnection(params: EnsureConnectionParams): Promise<void>;
+  ensureConnections(
+    entities: Entity[],
+    rooms: RoomCompat[],
+    source: string,
+    world: WorldCompat
+  ): Promise<void>;
 }
 
 function addServerId<T extends Record<string, unknown>>(obj: T): T {
-  if (!obj?.messageServerId) {return obj;}
+  if (!obj?.messageServerId) {
+    return obj;
+  }
   return { ...obj, serverId: obj.serverId ?? obj.messageServerId };
 }
 
@@ -66,15 +76,16 @@ export function createCompatRuntime(runtime: IAgentRuntime): ICompatRuntime {
   return new Proxy(runtime, {
     get(target, prop, receiver) {
       const value = Reflect.get(target, prop, receiver);
-      if (typeof value !== 'function') {return value;}
+      if (typeof value !== 'function') {
+        return value;
+      }
 
       if (prop === 'ensureWorldExists') {
         return (world: unknown) =>
           value.call(target, addServerId(world as Record<string, unknown>));
       }
       if (prop === 'ensureRoomExists') {
-        return (room: unknown) =>
-          value.call(target, addServerId(room as Record<string, unknown>));
+        return (room: unknown) => value.call(target, addServerId(room as Record<string, unknown>));
       }
       if (prop === 'ensureConnection') {
         return (params: unknown) =>
@@ -91,11 +102,10 @@ export function createCompatRuntime(runtime: IAgentRuntime): ICompatRuntime {
           );
       }
 
-            // IMPORTANT: Bind all functions to target to preserve private field access.
-            // Without this, methods using private fields (e.g., #conversationLength)
-            // will fail because `this` would refer to the Proxy, not the class instance.
-            return value.bind(target);
-        },
-    });
+      // IMPORTANT: Bind all functions to target to preserve private field access.
+      // Without this, methods using private fields (e.g., #conversationLength)
+      // will fail because `this` would refer to the Proxy, not the class instance.
+      return value.bind(target);
+    },
+  });
 }
-
