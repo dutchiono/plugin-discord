@@ -16,15 +16,7 @@ import { DISCORD_SERVICE_NAME } from "../constants";
 import type { TextChannel, BaseGuildVoiceChannel, GuildChannel, Guild } from "discord.js";
 import { ChannelType as DiscordChannelType } from "discord.js";
 import type { VoiceManager } from "../voice";
-
-/**
- * Check if a string looks like a Discord snowflake ID (all digits, 17-20 chars)
- * UUIDs contain hyphens and letters, snowflakes are pure numeric
- */
-function isDiscordSnowflake(id: string | undefined): boolean {
-  if (!id) return false;
-  return /^\d{17,20}$/.test(id);
-}
+import { isDiscordSnowflake, getGuildFromRoom } from "../utils";
 
 /**
  * Template for extracting channel information from the user's request to join a channel.
@@ -91,10 +83,10 @@ const getJoinChannelInfo = async (
   return null;
 };
 
-/**
- * Get the guild from a channel ID or message server ID (with backwards compatibility)
- */
-const getGuildFromRoom = async (
+// Note: getGuildFromRoom is imported from ../utils
+
+// Local wrapper to maintain API compatibility
+async function getGuildFromRoomLocal(
   discordService: DiscordService,
   channelId?: string,
   messageServerId?: string,
