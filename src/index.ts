@@ -1,5 +1,4 @@
-import { type IAgentRuntime, type Plugin, type Media } from '@elizaos/core';
-import { isDataUrl } from './utils';
+import { type IAgentRuntime, type Plugin } from '@elizaos/core';
 import chatWithAttachments from './actions/chatWithAttachments';
 import { downloadMedia } from './actions/downloadMedia';
 import joinChannel from './actions/joinChannel';
@@ -52,79 +51,6 @@ export { DiscordClientRegistry } from './clientRegistry';
 // Export audio sink contracts
 export type { IAudioSink, AudioSinkStatus } from './contracts';
 export { DiscordAudioSink } from './sinks';
-
-/**
- * Scrubs base64 images from existing memories to prevent context bloat.
- * This fixes memories that were saved before we started filtering them.
- *
- * @param runtime - The agent runtime
- */
-async function scrubBase64ImagesFromMemories(runtime: IAgentRuntime): Promise<void> {
-  try {
-    runtime.logger.info({ src: 'plugin:discord' }, 'Checking for base64 images in memories...');
-
-    // Get recent memories that might have base64 attachments
-    // We check the last 1000 messages as a reasonable limit
-    const memories = await runtime.getMemories({
-      tableName: 'messages',
-      count: 1000,
-    });
-
-    let scrubbed = 0;
-
-    for (const memory of memories) {
-      // Skip memories without IDs (shouldn't happen, but be safe)
-      if (!memory.id) continue;
-
-      const attachments = memory.content?.attachments as Media[] | undefined;
-      if (!attachments || attachments.length === 0) continue;
-
-      // Check if any attachments have base64 data URLs
-      const hasBase64 = attachments.some((att) => att.url && isDataUrl(att.url));
-      if (!hasBase64) continue;
-
-      // Filter out base64 attachments
-      const filteredAttachments = attachments.filter((att) => !att.url || !isDataUrl(att.url));
-
-      // Count how many were removed
-      const removedCount = attachments.length - filteredAttachments.length;
-      if (removedCount > 0) {
-        // Add placeholder for removed images
-        filteredAttachments.push({
-          id: 'scrubbed-data-url-images',
-          url: '',
-          title: `${removedCount} image(s) scrubbed`,
-          description: `${removedCount} base64 image(s) were removed from memory to prevent context bloat`,
-        });
-      }
-
-      // Update the memory with filtered attachments
-      await runtime.updateMemory({
-        id: memory.id,
-        content: {
-          ...memory.content,
-          attachments: filteredAttachments.length > 0 ? filteredAttachments : undefined,
-        },
-      });
-      scrubbed++;
-    }
-
-    if (scrubbed > 0) {
-      runtime.logger.info(
-        { src: 'plugin:discord', scrubbedCount: scrubbed },
-        `Scrubbed base64 images from ${scrubbed} memories`
-      );
-    } else {
-      runtime.logger.debug({ src: 'plugin:discord' }, 'No base64 images found in memories');
-    }
-  } catch (error) {
-    // Don't fail plugin init if cleanup fails
-    runtime.logger.warn(
-      { src: 'plugin:discord', error: error instanceof Error ? error.message : String(error) },
-      'Failed to scrub base64 images from memories (non-fatal)'
-    );
-  }
-}
 
 const discordPlugin: Plugin = {
   name: 'discord',
@@ -241,9 +167,6 @@ const discordPlugin: Plugin = {
       runtime.logger.warn('');
     }
 
-    // Clean up base64 images from existing memories to prevent context bloat
-    // This runs once on startup to fix any memories that were saved before this fix
-    await scrubBase64ImagesFromMemories(runtime);
   },
 };
 

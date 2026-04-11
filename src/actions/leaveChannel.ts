@@ -11,59 +11,13 @@ import {
   composePromptFromState,
   parseJSONObjectFromText,
   createUniqueUuid,
-} from "@elizaos/core";
-import { DiscordService } from "../service";
-import { DISCORD_SERVICE_NAME } from "../constants";
-import { type TextChannel, BaseGuildVoiceChannel, type GuildChannel, type Guild } from "discord.js";
-import { ChannelType as DiscordChannelType } from "discord.js";
-import type { VoiceManager } from "../voice";
-
-/**
- * Check if a string looks like a Discord snowflake ID (all digits, 17-20 chars)
- * UUIDs contain hyphens and letters, snowflakes are pure numeric
- */
-function isDiscordSnowflake(id: string | undefined): boolean {
-  if (!id) return false;
-  return /^\d{17,20}$/.test(id);
-}
-
-/**
- * Get the guild from a channel ID or message server ID (with backwards compatibility)
- */
-const getGuildFromRoom = async (
-  discordService: DiscordService,
-  channelId?: string,
-  messageServerId?: string,
-): Promise<Guild | null> => {
-  if (!discordService.client) return null;
-  
-  // Primary path: Use channelId to find the guild
-  if (channelId) {
-    let channel = discordService.client.channels.cache.get(channelId) as GuildChannel | undefined;
-    if (!channel) {
-      try {
-        channel = await discordService.client.channels.fetch(channelId) as GuildChannel | undefined;
-      } catch {
-        // Channel fetch failed
-      }
-    }
-    if (channel?.guild) {
-      return channel.guild;
-    }
-  }
-
-  // Backwards compatibility: If channelId didn't work, try messageServerId
-  // Only if it looks like a Discord snowflake (not a UUID)
-  if (isDiscordSnowflake(messageServerId)) {
-    try {
-      return await discordService.client.guilds.fetch(messageServerId);
-    } catch {
-      // Guild fetch failed
-    }
-  }
-
-  return null;
-};
+} from '@elizaos/core';
+import { DiscordService } from '../service';
+import { DISCORD_SERVICE_NAME } from '../constants';
+import { getGuildFromRoom } from '../discordUtils';
+import { type TextChannel, BaseGuildVoiceChannel } from 'discord.js';
+import { ChannelType as DiscordChannelType } from 'discord.js';
+import type { VoiceManager } from '../voice';
 
 /**
  * Template for extracting channel information from the user's request to leave a channel.
@@ -158,7 +112,7 @@ const findChannel = async (
   }
 
   // Handle "current" channel
-  if (identifier === "current" && currentChannelId) {
+  if (identifier === 'current' && currentChannelId) {
     try {
       const channel =
         await discordService.client.channels.fetch(currentChannelId);
@@ -177,7 +131,7 @@ const findChannel = async (
   }
 
   // Remove channel mention formatting if present
-  const cleanId = identifier.replace(/[<#>]/g, "");
+  const cleanId = identifier.replace(/[<#>]/g, '');
 
   try {
     // Try to fetch by ID first
@@ -207,8 +161,8 @@ const findChannel = async (
       const channel = channels.find((ch) => {
         const nameMatch =
           ch?.name.toLowerCase() === identifier.toLowerCase() ||
-          ch?.name.toLowerCase().replace(/[^a-z0-9 ]/g, "") ===
-            identifier.toLowerCase().replace(/[^a-z0-9 ]/g, "");
+          ch?.name.toLowerCase().replace(/[^a-z0-9 ]/g, '') ===
+            identifier.toLowerCase().replace(/[^a-z0-9 ]/g, '');
 
         if (isVoiceChannel) {
           return nameMatch && ch.type === DiscordChannelType.GuildVoice;
@@ -230,8 +184,8 @@ const findChannel = async (
         const channel = channels.find((ch) => {
           const nameMatch =
             ch?.name.toLowerCase() === identifier.toLowerCase() ||
-            ch?.name.toLowerCase().replace(/[^a-z0-9 ]/g, "") ===
-              identifier.toLowerCase().replace(/[^a-z0-9 ]/g, "");
+            ch?.name.toLowerCase().replace(/[^a-z0-9 ]/g, '') ===
+              identifier.toLowerCase().replace(/[^a-z0-9 ]/g, '');
 
           if (isVoiceChannel) {
             return nameMatch && ch.type === DiscordChannelType.GuildVoice;
@@ -256,33 +210,33 @@ const findChannel = async (
 };
 
 export const leaveChannel: Action = {
-  name: "LEAVE_CHANNEL",
+  name: 'LEAVE_CHANNEL',
   similes: [
-    "LEAVE_CHANNEL",
-    "STOP_LISTENING_CHANNEL",
-    "STOP_MONITORING_CHANNEL",
-    "REMOVE_CHANNEL",
-    "UNWATCH_CHANNEL",
-    "LEAVE_TEXT_CHANNEL",
-    "IGNORE_CHANNEL",
-    "LEAVE_VOICE",
-    "LEAVE_VC",
-    "LEAVE_VOICE_CHAT",
-    "LEAVE_VOICE_CHANNEL",
-    "LEAVE_CALL",
-    "EXIT_VOICE",
-    "DISCONNECT_VOICE",
-    "LEAVE_DISCORD_CHANNEL",
-    "EXIT_CHANNEL",
+    'LEAVE_CHANNEL',
+    'STOP_LISTENING_CHANNEL',
+    'STOP_MONITORING_CHANNEL',
+    'REMOVE_CHANNEL',
+    'UNWATCH_CHANNEL',
+    'LEAVE_TEXT_CHANNEL',
+    'IGNORE_CHANNEL',
+    'LEAVE_VOICE',
+    'LEAVE_VC',
+    'LEAVE_VOICE_CHAT',
+    'LEAVE_VOICE_CHANNEL',
+    'LEAVE_CALL',
+    'EXIT_VOICE',
+    'DISCONNECT_VOICE',
+    'LEAVE_DISCORD_CHANNEL',
+    'EXIT_CHANNEL',
   ],
   description:
-    "Leave a Discord channel - either text (stop monitoring messages) or voice (disconnect from voice chat). Use this when asked to leave, exit, or disconnect from any Discord channel.",
+    'Leave a Discord channel - either text (stop monitoring messages) or voice (disconnect from voice chat). Use this when asked to leave, exit, or disconnect from any Discord channel.',
   validate: async (
     _runtime: IAgentRuntime,
     message: Memory,
     _state: State,
   ): Promise<boolean> => {
-    if (message.content.source !== "discord") {
+    if (message.content.source !== 'discord') {
       return false;
     }
     return true;
@@ -301,14 +255,14 @@ export const leaveChannel: Action = {
     if (!discordService || !discordService.client) {
       runtime.logger.error(
         {
-          src: "plugin:discord:action:leave-channel",
+          src: 'plugin:discord:action:leave-channel',
           agentId: runtime.agentId,
         },
-        "Discord service not found or not initialized",
+        'Discord service not found or not initialized',
       );
       await callback({
-        text: "Discord service is not available.",
-        source: "discord",
+        text: 'Discord service is not available.',
+        source: 'discord',
       });
       return undefined;
     }
@@ -321,24 +275,24 @@ export const leaveChannel: Action = {
       const messageServerId = (room as any)?.messageServerId;
 
       // Check if trying to leave voice without specifying channel
-      const messageText = message.content.text?.toLowerCase() || "";
+      const messageText = message.content.text?.toLowerCase() || '';
       const isVoiceRequest =
         channelInfo?.isVoiceChannel ||
-        messageText.includes("voice") ||
-        messageText.includes("vc") ||
-        messageText.includes("call");
+        messageText.includes('voice') ||
+        messageText.includes('vc') ||
+        messageText.includes('call');
 
       // If it's a generic voice leave request, handle current voice channel
       if (
         isVoiceRequest &&
-        (!channelInfo || channelInfo.channelIdentifier === "current")
+        (!channelInfo || channelInfo.channelIdentifier === 'current')
       ) {
         const voiceManager = discordService.voiceManager as VoiceManager;
 
         if (!voiceManager) {
           await callback({
-            text: "Voice functionality is not available at the moment.",
-            source: "discord",
+            text: 'Voice functionality is not available at the moment.',
+            source: 'discord',
           });
           return undefined;
         }
@@ -353,7 +307,7 @@ export const leaveChannel: Action = {
           ) {
             await callback({
               text: "I'm not currently in a voice channel.",
-              source: "discord",
+              source: 'discord',
             });
             return undefined;
           }
@@ -361,8 +315,8 @@ export const leaveChannel: Action = {
           const connection = voiceManager.getVoiceConnection(guild.id);
           if (!connection) {
             await callback({
-              text: "No active voice connection found.",
-              source: "discord",
+              text: 'No active voice connection found.',
+              source: 'discord',
             });
             return undefined;
           }
@@ -375,20 +329,20 @@ export const leaveChannel: Action = {
               agentId: message.agentId,
               roomId: createUniqueUuid(runtime, voiceChannel.id),
               content: {
-                source: "discord",
+                source: 'discord',
                 thought: `I left the voice channel ${voiceChannel.name}`,
-                actions: ["LEAVE_VOICE_STARTED"],
+                actions: ['LEAVE_VOICE_STARTED'],
               },
               metadata: {
-                type: "LEAVE_VOICE",
+                type: 'LEAVE_VOICE',
               },
             },
-            "messages",
+            'messages',
           );
 
           await callback({
             text: `I've left the voice channel ${voiceChannel.name}.`,
-            source: "discord",
+            source: 'discord',
           });
           return;
         }
@@ -397,14 +351,14 @@ export const leaveChannel: Action = {
       if (!channelInfo) {
         runtime.logger.warn(
           {
-            src: "plugin:discord:action:leave-channel",
+            src: 'plugin:discord:action:leave-channel',
             agentId: runtime.agentId,
           },
-          "Could not parse channel information from message",
+          'Could not parse channel information from message',
         );
         await callback({
           text: "I couldn't understand which channel you want me to leave. Please specify the channel name or ID.",
-          source: "discord",
+          source: 'discord',
         });
         return undefined;
       }
@@ -412,43 +366,43 @@ export const leaveChannel: Action = {
       // Find the channel (try voice first if it's a voice request)
       let targetChannel = isVoiceRequest
         ? await findChannel(
-            discordService,
-            channelInfo.channelIdentifier,
-            currentChannelId,
-            currentServerId,
-            true,
-          )
+          discordService,
+          channelInfo.channelIdentifier,
+          currentChannelId,
+          currentServerId,
+          true,
+        )
         : await findChannel(
-            discordService,
-            channelInfo.channelIdentifier,
-            currentChannelId,
-            currentServerId,
-            false,
-          );
+          discordService,
+          channelInfo.channelIdentifier,
+          currentChannelId,
+          currentServerId,
+          false,
+        );
 
       // If not found, try the opposite type
       if (!targetChannel) {
         targetChannel = isVoiceRequest
           ? await findChannel(
-              discordService,
-              channelInfo.channelIdentifier,
-              currentChannelId,
-              currentServerId,
-              false,
-            )
+            discordService,
+            channelInfo.channelIdentifier,
+            currentChannelId,
+            currentServerId,
+            false,
+          )
           : await findChannel(
-              discordService,
-              channelInfo.channelIdentifier,
-              currentChannelId,
-              currentServerId,
-              true,
-            );
+            discordService,
+            channelInfo.channelIdentifier,
+            currentChannelId,
+            currentServerId,
+            true,
+          );
       }
 
       if (!targetChannel) {
         await callback({
           text: `I couldn't find a channel with the identifier "${channelInfo.channelIdentifier}". Please make sure the channel name or ID is correct.`,
-          source: "discord",
+          source: 'discord',
         });
         return undefined;
       }
@@ -460,8 +414,8 @@ export const leaveChannel: Action = {
 
         if (!voiceManager) {
           await callback({
-            text: "Voice functionality is not available at the moment.",
-            source: "discord",
+            text: 'Voice functionality is not available at the moment.',
+            source: 'discord',
           });
           return undefined;
         }
@@ -475,7 +429,7 @@ export const leaveChannel: Action = {
         ) {
           await callback({
             text: `I'm not currently in the voice channel ${voiceChannel.name}.`,
-            source: "discord",
+            source: 'discord',
           });
           return undefined;
         }
@@ -488,20 +442,20 @@ export const leaveChannel: Action = {
             agentId: message.agentId,
             roomId: createUniqueUuid(runtime, voiceChannel.id),
             content: {
-              source: "discord",
+              source: 'discord',
               thought: `I left the voice channel ${voiceChannel.name}`,
-              actions: ["LEAVE_VOICE_STARTED"],
+              actions: ['LEAVE_VOICE_STARTED'],
             },
             metadata: {
-              type: "LEAVE_VOICE",
+              type: 'LEAVE_VOICE',
             },
           },
-          "messages",
+          'messages',
         );
 
         const response: Content = {
           text: `I've left the voice channel ${voiceChannel.name}.`,
-          actions: ["LEAVE_CHANNEL_RESPONSE"],
+          actions: ['LEAVE_CHANNEL_RESPONSE'],
           source: message.content.source,
         };
 
@@ -515,7 +469,7 @@ export const leaveChannel: Action = {
         if (!currentChannels.includes(textChannel.id)) {
           await callback({
             text: `I'm not currently listening to ${textChannel.name} (<#${textChannel.id}>).`,
-            source: "discord",
+            source: 'discord',
           });
           return undefined;
         }
@@ -526,7 +480,7 @@ export const leaveChannel: Action = {
         if (success) {
           const response: Content = {
             text: `I've stopped listening to ${textChannel.name} (<#${textChannel.id}>). I will no longer respond to messages in that channel.`,
-            actions: ["LEAVE_CHANNEL_RESPONSE"],
+            actions: ['LEAVE_CHANNEL_RESPONSE'],
             source: message.content.source,
           };
 
@@ -534,7 +488,7 @@ export const leaveChannel: Action = {
         } else {
           await callback({
             text: `I couldn't remove ${textChannel.name} from my listening list. This channel might be configured in my environment settings and cannot be removed dynamically.`,
-            source: "discord",
+            source: 'discord',
           });
           return undefined;
         }
@@ -542,15 +496,15 @@ export const leaveChannel: Action = {
     } catch (error) {
       runtime.logger.error(
         {
-          src: "plugin:discord:action:leave-channel",
+          src: 'plugin:discord:action:leave-channel',
           agentId: runtime.agentId,
           error: error instanceof Error ? error.message : String(error),
         },
-        "Error leaving channel",
+        'Error leaving channel',
       );
       await callback({
-        text: "I encountered an error while trying to leave the channel. Please try again.",
-        source: "discord",
+        text: 'I encountered an error while trying to leave the channel. Please try again.',
+        source: 'discord',
       });
       return undefined;
     }
@@ -558,106 +512,106 @@ export const leaveChannel: Action = {
   examples: [
     [
       {
-        name: "{{name1}}",
+        name: '{{name1}}',
         content: {
-          text: "leave the dev-voice channel",
+          text: 'leave the dev-voice channel',
         },
       },
       {
-        name: "{{name2}}",
+        name: '{{name2}}',
         content: {
           text: "I'll leave the dev-voice channel.",
-          actions: ["LEAVE_CHANNEL"],
+          actions: ['LEAVE_CHANNEL'],
         },
       },
     ],
     [
       {
-        name: "{{name1}}",
+        name: '{{name1}}',
         content: {
-          text: "{{name2}} leave the dev-voice channel in discord",
+          text: '{{name2}} leave the dev-voice channel in discord',
         },
       },
       {
-        name: "{{name2}}",
+        name: '{{name2}}',
         content: {
-          text: "Leaving the dev-voice channel now.",
-          actions: ["LEAVE_CHANNEL"],
+          text: 'Leaving the dev-voice channel now.',
+          actions: ['LEAVE_CHANNEL'],
         },
       },
     ],
     [
       {
-        name: "{{name1}}",
+        name: '{{name1}}',
         content: {
-          text: "Stop listening to #general",
+          text: 'Stop listening to #general',
         },
       },
       {
-        name: "{{name2}}",
+        name: '{{name2}}',
         content: {
           text: "I'll stop listening to the #general channel.",
-          actions: ["LEAVE_CHANNEL"],
+          actions: ['LEAVE_CHANNEL'],
         },
       },
     ],
     [
       {
-        name: "{{name1}}",
+        name: '{{name1}}',
         content: {
-          text: "leave voice",
+          text: 'leave voice',
         },
       },
       {
-        name: "{{name2}}",
+        name: '{{name2}}',
         content: {
           text: "I'll leave the voice channel.",
-          actions: ["LEAVE_CHANNEL"],
+          actions: ['LEAVE_CHANNEL'],
         },
       },
     ],
     [
       {
-        name: "{{name1}}",
+        name: '{{name1}}',
         content: {
-          text: "Leave this channel",
+          text: 'Leave this channel',
         },
       },
       {
-        name: "{{name2}}",
+        name: '{{name2}}',
         content: {
           text: "I'll stop monitoring messages in this channel.",
-          actions: ["LEAVE_CHANNEL"],
+          actions: ['LEAVE_CHANNEL'],
         },
       },
     ],
     [
       {
-        name: "{{name1}}",
+        name: '{{name1}}',
         content: {
-          text: "hop off vc",
+          text: 'hop off vc',
         },
       },
       {
-        name: "{{name2}}",
+        name: '{{name2}}',
         content: {
-          text: "Leaving the voice channel now.",
-          actions: ["LEAVE_CHANNEL"],
+          text: 'Leaving the voice channel now.',
+          actions: ['LEAVE_CHANNEL'],
         },
       },
     ],
     [
       {
-        name: "{{name1}}",
+        name: '{{name1}}',
         content: {
-          text: "Please stop monitoring the spam channel",
+          text: 'Please stop monitoring the spam channel',
         },
       },
       {
-        name: "{{name2}}",
+        name: '{{name2}}',
         content: {
           text: "I'll stop monitoring the spam channel.",
-          actions: ["LEAVE_CHANNEL"],
+          actions: ['LEAVE_CHANNEL'],
         },
       },
     ],

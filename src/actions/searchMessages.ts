@@ -9,19 +9,11 @@ import {
   type State,
   composePromptFromState,
   parseJSONObjectFromText,
-} from "@elizaos/core";
-import { DiscordService } from "../service";
-import { DISCORD_SERVICE_NAME } from "../constants";
-import { type TextChannel, type Message, Collection, type Guild, type GuildChannel } from "discord.js";
-
-/**
- * Check if a string looks like a Discord snowflake ID (all digits, 17-20 chars)
- * UUIDs contain hyphens and letters, snowflakes are pure numeric
- */
-function isDiscordSnowflake(id: string | undefined): boolean {
-  if (!id) return false;
-  return /^\d{17,20}$/.test(id);
-}
+} from '@elizaos/core';
+import { DiscordService } from '../service';
+import { DISCORD_SERVICE_NAME } from '../constants';
+import { isDiscordSnowflake } from '../discordUtils';
+import { type TextChannel, type Message, Collection, type Guild, type GuildChannel } from 'discord.js';
 
 /**
  * Template for extracting search parameters from the user's request.
@@ -91,11 +83,11 @@ const getSearchParams = async (
     const parsedResponse = parseJSONObjectFromText(response);
     if (parsedResponse?.query) {
       // Remove quotes from query if present
-      const cleanQuery = parsedResponse.query.replace(/^["']|["']$/g, "");
+      const cleanQuery = parsedResponse.query.replace(/^["']|["']$/g, '');
 
       // Normalize null-like string values to actual null
       const normalizeNullish = (val: unknown): string | null => {
-        if (!val) return null;
+        if (!val) {return null;}
         if (typeof val === 'string') {
           const lower = val.toLowerCase().trim();
           if (lower === 'null' || lower === 'undefined' || lower === 'none' || lower === '') {
@@ -125,7 +117,7 @@ const searchInMessages = (
 ): Message[] => {
   const queryLower = query.toLowerCase().trim();
   const isLinkSearch =
-    queryLower.includes("link") || queryLower.includes("url");
+    queryLower.includes('link') || queryLower.includes('url');
 
   return Array.from(messages.values()).filter((msg) => {
     // Skip system messages
@@ -180,20 +172,20 @@ const searchInMessages = (
 };
 
 export const searchMessages: Action = {
-  name: "SEARCH_MESSAGES",
+  name: 'SEARCH_MESSAGES',
   similes: [
-    "SEARCH_MESSAGES",
-    "FIND_MESSAGES",
-    "SEARCH_CHAT",
-    "LOOK_FOR_MESSAGES",
-    "FIND_IN_CHAT",
-    "SEARCH_CHANNEL",
-    "SEARCH_DISCORD",
+    'SEARCH_MESSAGES',
+    'FIND_MESSAGES',
+    'SEARCH_CHAT',
+    'LOOK_FOR_MESSAGES',
+    'FIND_IN_CHAT',
+    'SEARCH_CHANNEL',
+    'SEARCH_DISCORD',
   ],
   description:
-    "Search for messages in Discord channels based on keywords, author, or time range.",
+    'Search for messages in Discord channels based on keywords, author, or time range.',
   validate: async (_runtime: IAgentRuntime, message: Memory, _state: State) => {
-    return message.content.source === "discord";
+    return message.content.source === 'discord';
   },
   handler: async (
     runtime: IAgentRuntime,
@@ -208,8 +200,8 @@ export const searchMessages: Action = {
 
     if (!discordService || !discordService.client) {
       await callback({
-        text: "Discord service is not available.",
-        source: "discord",
+        text: 'Discord service is not available.',
+        source: 'discord',
       });
       return;
     }
@@ -218,7 +210,7 @@ export const searchMessages: Action = {
     if (!searchParams) {
       await callback({
         text: "I couldn't understand what you want to search for. Please specify what to search.",
-        source: "discord",
+        source: 'discord',
       });
       return;
     }
@@ -228,7 +220,7 @@ export const searchMessages: Action = {
       const room = state.data?.room || (await runtime.getRoom(message.roomId));
 
       // Determine the target channel
-      if (searchParams.channelIdentifier === "current") {
+      if (searchParams.channelIdentifier === 'current') {
         if (room?.channelId) {
           targetChannel = (await discordService.client.channels.fetch(
             room.channelId,
@@ -242,7 +234,7 @@ export const searchMessages: Action = {
         // It's a channel name - search in the current server
         const channelId = room?.channelId;
         const messageServerId = (room as any)?.messageServerId;
-        
+
         let guild: Guild | undefined;
 
         // Primary path: Use channelId to find the guild
@@ -271,7 +263,7 @@ export const searchMessages: Action = {
         if (!guild) {
           await callback({
             text: "I couldn't determine which server to search for that channel.",
-            source: "discord",
+            source: 'discord',
           });
           return;
         }
@@ -289,7 +281,7 @@ export const searchMessages: Action = {
       if (!targetChannel || !targetChannel.isTextBased()) {
         await callback({
           text: "I couldn't find that channel or I don't have access to it.",
-          source: "discord",
+          source: 'discord',
         });
         return;
       }
@@ -323,13 +315,13 @@ export const searchMessages: Action = {
       );
       runtime.logger.debug(
         {
-          src: "plugin:discord:action:search-messages",
+          src: 'plugin:discord:action:search-messages',
           agentId: runtime.agentId,
           query: searchParams.query,
           resultsCount: results.length,
           channelName: targetChannel.name,
         },
-        "Search completed",
+        'Search completed',
       );
 
       // Sort by timestamp (newest first) and limit
@@ -341,7 +333,7 @@ export const searchMessages: Action = {
       if (limitedResults.length === 0) {
         await callback({
           text: `No messages found matching "${searchParams.query}" in <#${targetChannel.id}>.`,
-          source: "discord",
+          source: 'discord',
         });
         return;
       }
@@ -357,14 +349,14 @@ export const searchMessages: Action = {
           const attachments =
             msg.attachments.size > 0
               ? `\n📎 ${msg.attachments.size} attachment(s)`
-              : "";
+              : '';
 
           return `**${index + 1}.** ${msg.author.username} (${timestamp})\n${preview}${attachments}\n[Jump to message](${msg.url})`;
         })
-        .join("\n\n");
+        .join('\n\n');
 
       const response: Content = {
-        text: `Found ${limitedResults.length} message${limitedResults.length !== 1 ? "s" : ""} matching "${searchParams.query}" in <#${targetChannel.id}>:\n\n${formattedResults}`,
+        text: `Found ${limitedResults.length} message${limitedResults.length !== 1 ? 's' : ''} matching "${searchParams.query}" in <#${targetChannel.id}>:\n\n${formattedResults}`,
         source: message.content.source,
       };
 
@@ -372,61 +364,61 @@ export const searchMessages: Action = {
     } catch (error) {
       runtime.logger.error(
         {
-          src: "plugin:discord:action:search-messages",
+          src: 'plugin:discord:action:search-messages',
           agentId: runtime.agentId,
           error: error instanceof Error ? error.message : String(error),
         },
-        "Error searching messages",
+        'Error searching messages',
       );
       await callback({
-        text: "I encountered an error while searching for messages. Please try again.",
-        source: "discord",
+        text: 'I encountered an error while searching for messages. Please try again.',
+        source: 'discord',
       });
     }
   },
   examples: [
     [
       {
-        name: "{{name1}}",
+        name: '{{name1}}',
         content: {
           text: "search for messages containing 'meeting'",
         },
       },
       {
-        name: "{{name2}}",
+        name: '{{name2}}',
         content: {
           text: "I'll search for messages containing 'meeting'.",
-          actions: ["SEARCH_MESSAGES"],
+          actions: ['SEARCH_MESSAGES'],
         },
       },
     ],
     [
       {
-        name: "{{name1}}",
+        name: '{{name1}}',
         content: {
-          text: "find all links shared in #general from last week",
+          text: 'find all links shared in #general from last week',
         },
       },
       {
-        name: "{{name2}}",
+        name: '{{name2}}',
         content: {
-          text: "Let me search for links in #general from the past week.",
-          actions: ["SEARCH_MESSAGES"],
+          text: 'Let me search for links in #general from the past week.',
+          actions: ['SEARCH_MESSAGES'],
         },
       },
     ],
     [
       {
-        name: "{{name1}}",
+        name: '{{name1}}',
         content: {
-          text: "search for messages from @john about the bug",
+          text: 'search for messages from @john about the bug',
         },
       },
       {
-        name: "{{name2}}",
+        name: '{{name2}}',
         content: {
           text: "I'll look for messages from john about the bug.",
-          actions: ["SEARCH_MESSAGES"],
+          actions: ['SEARCH_MESSAGES'],
         },
       },
     ],

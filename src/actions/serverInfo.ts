@@ -6,19 +6,11 @@ import {
   type IAgentRuntime,
   type Memory,
   type State,
-} from "@elizaos/core";
-import { DiscordService } from "../service";
-import { DISCORD_SERVICE_NAME } from "../constants";
-import { type Guild, type GuildChannel } from "discord.js";
-
-/**
- * Check if a string looks like a Discord snowflake ID (all digits, 17-20 chars)
- * UUIDs contain hyphens and letters, snowflakes are pure numeric
- */
-function isDiscordSnowflake(id: string | undefined): boolean {
-  if (!id) return false;
-  return /^\d{17,20}$/.test(id);
-}
+} from '@elizaos/core';
+import { DiscordService } from '../service';
+import { DISCORD_SERVICE_NAME } from '../constants';
+import { isDiscordSnowflake } from '../discordUtils';
+import { type Guild, type GuildChannel } from 'discord.js';
 
 const formatServerInfo = (guild: Guild, detailed: boolean = false): string => {
   const createdAt = new Date(guild.createdAt).toLocaleDateString();
@@ -58,24 +50,24 @@ const formatServerInfo = (guild: Guild, detailed: boolean = false): string => {
     const features =
       guild.features.length > 0
         ? guild.features
-            .map((f) => f.toLowerCase().replace(/_/g, " "))
-            .join(", ")
-        : "None";
+          .map((f) => f.toLowerCase().replace(/_/g, ' '))
+          .join(', ')
+        : 'None';
 
     const detailedInfo = [
-      "",
-      "📊 **Detailed Statistics**",
+      '',
+      '📊 **Detailed Statistics**',
       `**Text Channels:** ${textChannels}`,
       `**Voice Channels:** ${voiceChannels}`,
       `**Categories:** ${categories}`,
       `**Active Threads:** ${activeThreads}`,
       `**Custom Emojis:** ${emojiCount}`,
       `**Stickers:** ${stickerCount}`,
-      "",
-      "🎯 **Server Features**",
+      '',
+      '🎯 **Server Features**',
       `**Verification Level:** ${guild.verificationLevel}`,
       `**Content Filter:** ${guild.explicitContentFilter}`,
-      `**2FA Requirement:** ${guild.mfaLevel === 1 ? "Enabled" : "Disabled"}`,
+      `**2FA Requirement:** ${guild.mfaLevel === 1 ? 'Enabled' : 'Disabled'}`,
       `**Features:** ${features}`,
     ];
 
@@ -87,27 +79,27 @@ const formatServerInfo = (guild: Guild, detailed: boolean = false): string => {
       detailedInfo.push(`**Vanity URL:** discord.gg/${guild.vanityURLCode}`);
     }
 
-    return [...basicInfo, ...detailedInfo].join("\n");
+    return [...basicInfo, ...detailedInfo].join('\n');
   }
 
-  return basicInfo.join("\n");
+  return basicInfo.join('\n');
 };
 
 export const serverInfo: Action = {
-  name: "SERVER_INFO",
+  name: 'SERVER_INFO',
   similes: [
-    "SERVER_INFO",
-    "GUILD_INFO",
-    "SERVER_STATS",
-    "SERVER_DETAILS",
-    "ABOUT_SERVER",
-    "SERVER_INFORMATION",
-    "CHECK_SERVER",
+    'SERVER_INFO',
+    'GUILD_INFO',
+    'SERVER_STATS',
+    'SERVER_DETAILS',
+    'ABOUT_SERVER',
+    'SERVER_INFORMATION',
+    'CHECK_SERVER',
   ],
   description:
-    "Get information about the current Discord server including member count, creation date, and other statistics.",
+    'Get information about the current Discord server including member count, creation date, and other statistics.',
   validate: async (_runtime: IAgentRuntime, message: Memory, _state: State) => {
-    return message.content.source === "discord";
+    return message.content.source === 'discord';
   },
   handler: async (
     runtime: IAgentRuntime,
@@ -122,8 +114,8 @@ export const serverInfo: Action = {
 
     if (!discordService || !discordService.client) {
       await callback({
-        text: "Discord service is not available.",
-        source: "discord",
+        text: 'Discord service is not available.',
+        source: 'discord',
       });
       return;
     }
@@ -132,7 +124,7 @@ export const serverInfo: Action = {
       const room = state.data?.room || (await runtime.getRoom(message.roomId));
       const channelId = room?.channelId;
       const messageServerId = (room as any)?.messageServerId;
-      
+
       let guild: Guild | undefined;
 
       // Primary path: Use channelId to find the guild
@@ -161,18 +153,18 @@ export const serverInfo: Action = {
       if (!guild) {
         await callback({
           text: "I couldn't determine the current server.",
-          source: "discord",
+          source: 'discord',
         });
         return;
       }
 
       // Check if the request is for detailed info
-      const messageText = message.content.text?.toLowerCase() || "";
+      const messageText = message.content.text?.toLowerCase() || '';
       const isDetailed =
-        messageText.includes("detailed") ||
-        messageText.includes("full") ||
-        messageText.includes("stats") ||
-        messageText.includes("statistics");
+        messageText.includes('detailed') ||
+        messageText.includes('full') ||
+        messageText.includes('stats') ||
+        messageText.includes('statistics');
 
       const infoText = formatServerInfo(guild, isDetailed);
 
@@ -185,61 +177,61 @@ export const serverInfo: Action = {
     } catch (error) {
       runtime.logger.error(
         {
-          src: "plugin:discord:action:server-info",
+          src: 'plugin:discord:action:server-info',
           agentId: runtime.agentId,
           error: error instanceof Error ? error.message : String(error),
         },
-        "Error getting server info",
+        'Error getting server info',
       );
       await callback({
-        text: "I encountered an error while getting server information. Please try again.",
-        source: "discord",
+        text: 'I encountered an error while getting server information. Please try again.',
+        source: 'discord',
       });
     }
   },
   examples: [
     [
       {
-        name: "{{name1}}",
+        name: '{{name1}}',
         content: {
-          text: "show server info",
+          text: 'show server info',
         },
       },
       {
-        name: "{{name2}}",
+        name: '{{name2}}',
         content: {
           text: "I'll get the server information for you.",
-          actions: ["SERVER_INFO"],
+          actions: ['SERVER_INFO'],
         },
       },
     ],
     [
       {
-        name: "{{name1}}",
+        name: '{{name1}}',
         content: {
-          text: "what are the server stats?",
+          text: 'what are the server stats?',
         },
       },
       {
-        name: "{{name2}}",
+        name: '{{name2}}',
         content: {
-          text: "Let me fetch the server statistics.",
-          actions: ["SERVER_INFO"],
+          text: 'Let me fetch the server statistics.',
+          actions: ['SERVER_INFO'],
         },
       },
     ],
     [
       {
-        name: "{{name1}}",
+        name: '{{name1}}',
         content: {
-          text: "give me detailed server information",
+          text: 'give me detailed server information',
         },
       },
       {
-        name: "{{name2}}",
+        name: '{{name2}}',
         content: {
           text: "I'll provide detailed information about this server.",
-          actions: ["SERVER_INFO"],
+          actions: ['SERVER_INFO'],
         },
       },
     ],

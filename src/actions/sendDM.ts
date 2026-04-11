@@ -9,57 +9,11 @@ import {
   type State,
   composePromptFromState,
   parseJSONObjectFromText,
-} from "@elizaos/core";
-import { DiscordService } from "../service";
-import { DISCORD_SERVICE_NAME } from "../constants";
-import type { User, GuildChannel, Guild } from "discord.js";
-
-/**
- * Check if a string looks like a Discord snowflake ID (all digits, 17-20 chars)
- * UUIDs contain hyphens and letters, snowflakes are pure numeric
- */
-function isDiscordSnowflake(id: string | undefined): boolean {
-  if (!id) return false;
-  return /^\d{17,20}$/.test(id);
-}
-
-/**
- * Get the guild from a channel ID or message server ID (with backwards compatibility)
- */
-const getGuildFromRoom = async (
-  discordService: DiscordService,
-  channelId?: string,
-  messageServerId?: string,
-): Promise<Guild | null> => {
-  if (!discordService.client) return null;
-  
-  // Primary path: Use channelId to find the guild
-  if (channelId) {
-    let channel = discordService.client.channels.cache.get(channelId) as GuildChannel | undefined;
-    if (!channel) {
-      try {
-        channel = await discordService.client.channels.fetch(channelId) as GuildChannel | undefined;
-      } catch {
-        // Channel fetch failed
-      }
-    }
-    if (channel?.guild) {
-      return channel.guild;
-    }
-  }
-
-  // Backwards compatibility: If channelId didn't work, try messageServerId
-  // Only if it looks like a Discord snowflake (not a UUID)
-  if (isDiscordSnowflake(messageServerId)) {
-    try {
-      return await discordService.client.guilds.fetch(messageServerId);
-    } catch {
-      // Guild fetch failed
-    }
-  }
-
-  return null;
-};
+} from '@elizaos/core';
+import { DiscordService } from '../service';
+import { DISCORD_SERVICE_NAME } from '../constants';
+import { getGuildFromRoom } from '../discordUtils';
+import type { User } from 'discord.js';
 
 /**
  * Template for extracting DM recipient and message information from the user's request.
@@ -147,7 +101,7 @@ const findUser = async (
   }
 
   // Remove mention formatting if present
-  const cleanId = identifier.replace(/[<@!>]/g, "");
+  const cleanId = identifier.replace(/[<@!>]/g, '');
 
   try {
     // Try to fetch by ID first
@@ -205,19 +159,19 @@ const findUser = async (
 };
 
 export const sendDM: Action = {
-  name: "SEND_DM",
+  name: 'SEND_DM',
   similes: [
-    "SEND_DIRECT_MESSAGE",
-    "DM_USER",
-    "MESSAGE_USER",
-    "PRIVATE_MESSAGE",
-    "SEND_PRIVATE_MESSAGE",
-    "DM",
-    "SEND_MESSAGE_TO_USER",
+    'SEND_DIRECT_MESSAGE',
+    'DM_USER',
+    'MESSAGE_USER',
+    'PRIVATE_MESSAGE',
+    'SEND_PRIVATE_MESSAGE',
+    'DM',
+    'SEND_MESSAGE_TO_USER',
   ],
-  description: "Sends a direct message to a specific Discord user.",
+  description: 'Sends a direct message to a specific Discord user.',
   validate: async (_runtime: IAgentRuntime, message: Memory, _state: State) => {
-    if (message.content.source !== "discord") {
+    if (message.content.source !== 'discord') {
       return false;
     }
     return true;
@@ -235,8 +189,8 @@ export const sendDM: Action = {
 
     if (!discordService || !discordService.client) {
       runtime.logger.error(
-        { src: "plugin:discord:action:send-dm", agentId: runtime.agentId },
-        "Discord service not found or not initialized",
+        { src: 'plugin:discord:action:send-dm', agentId: runtime.agentId },
+        'Discord service not found or not initialized',
       );
       return;
     }
@@ -244,12 +198,12 @@ export const sendDM: Action = {
     const dmInfo = await getDMInfo(runtime, message, state);
     if (!dmInfo) {
       runtime.logger.warn(
-        { src: "plugin:discord:action:send-dm", agentId: runtime.agentId },
-        "Could not parse DM information from message",
+        { src: 'plugin:discord:action:send-dm', agentId: runtime.agentId },
+        'Could not parse DM information from message',
       );
       await callback({
         text: "I couldn't understand who you want me to message or what to send. Please specify the recipient and the message content.",
-        source: "discord",
+        source: 'discord',
       });
       return;
     }
@@ -270,7 +224,7 @@ export const sendDM: Action = {
       if (!targetUser) {
         await callback({
           text: `I couldn't find a user with the identifier "${dmInfo.recipientIdentifier}". Please make sure the username or ID is correct.`,
-          source: "discord",
+          source: 'discord',
         });
         return;
       }
@@ -278,8 +232,8 @@ export const sendDM: Action = {
       // Check if we can send DMs to this user
       if (targetUser.bot) {
         await callback({
-          text: "I cannot send direct messages to other bots.",
-          source: "discord",
+          text: 'I cannot send direct messages to other bots.',
+          source: 'discord',
         });
         return;
       }
@@ -292,7 +246,7 @@ export const sendDM: Action = {
 
       const response: Content = {
         text: `I've sent your message to ${targetUser.username}: "${dmInfo.messageContent}"`,
-        actions: ["SEND_DM_RESPONSE"],
+        actions: ['SEND_DM_RESPONSE'],
         source: message.content.source,
       };
 
@@ -300,24 +254,24 @@ export const sendDM: Action = {
     } catch (error) {
       runtime.logger.error(
         {
-          src: "plugin:discord:action:send-dm",
+          src: 'plugin:discord:action:send-dm',
           agentId: runtime.agentId,
           error: error instanceof Error ? error.message : String(error),
         },
-        "Error sending DM",
+        'Error sending DM',
       );
 
       // Handle specific Discord API errors
       if (error instanceof Error) {
-        if (error.message.includes("Cannot send messages to this user")) {
+        if (error.message.includes('Cannot send messages to this user')) {
           await callback({
             text: "I couldn't send a message to that user. They may have DMs disabled or we don't share a server.",
-            source: "discord",
+            source: 'discord',
           });
         } else {
           await callback({
-            text: "I encountered an error while trying to send the direct message. Please make sure I have the necessary permissions.",
-            source: "discord",
+            text: 'I encountered an error while trying to send the direct message. Please make sure I have the necessary permissions.',
+            source: 'discord',
           });
         }
       }
@@ -326,46 +280,46 @@ export const sendDM: Action = {
   examples: [
     [
       {
-        name: "{{name1}}",
+        name: '{{name1}}',
         content: {
-          text: "Send a DM to @alice saying hello how are you today?",
+          text: 'Send a DM to @alice saying hello how are you today?',
         },
       },
       {
-        name: "{{name2}}",
+        name: '{{name2}}',
         content: {
           text: "I'll send a direct message to alice right away.",
-          actions: ["SEND_DM"],
+          actions: ['SEND_DM'],
         },
       },
     ],
     [
       {
-        name: "{{name1}}",
+        name: '{{name1}}',
         content: {
-          text: "Can you message john_doe and tell him the meeting is at 3pm?",
+          text: 'Can you message john_doe and tell him the meeting is at 3pm?',
         },
       },
       {
-        name: "{{name2}}",
+        name: '{{name2}}',
         content: {
           text: "I'll send john_doe a DM about the meeting time.",
-          actions: ["SEND_DM"],
+          actions: ['SEND_DM'],
         },
       },
     ],
     [
       {
-        name: "{{name1}}",
+        name: '{{name1}}',
         content: {
-          text: "DM user 123456789012345678 with: Thanks for your help!",
+          text: 'DM user 123456789012345678 with: Thanks for your help!',
         },
       },
       {
-        name: "{{name2}}",
+        name: '{{name2}}',
         content: {
           text: "I'll send that thank you message as a DM right now.",
-          actions: ["SEND_DM"],
+          actions: ['SEND_DM'],
         },
       },
     ],
