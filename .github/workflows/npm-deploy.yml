@@ -6,6 +6,10 @@ on:
       - 1.x
   workflow_dispatch:
 
+concurrency:
+  group: publish-package-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   verify_version:
     runs-on: ubuntu-latest
@@ -23,40 +27,50 @@ jobs:
         run: |
           echo "Current branch: ${{ github.ref }}"
 
-          # Get current version
+          # Get current package metadata
+          PACKAGE_NAME=$(jq -r .name package.json)
           CURRENT_VERSION=$(jq -r .version package.json)
+          echo "Package: $PACKAGE_NAME"
           echo "Current version: $CURRENT_VERSION"
 
-          # Get previous commit hash
-          git rev-parse HEAD~1 || git rev-parse HEAD
-          PREV_COMMIT=$(git rev-parse HEAD~1 2>/dev/null || git rev-parse HEAD)
+          # Get previous commit hash and determine whether package.json changed.
+          if git rev-parse HEAD~1 >/dev/null 2>&1; then
+            PREV_COMMIT=$(git rev-parse HEAD~1)
+            PACKAGE_JSON_CHANGED=$(
+              git diff --name-only HEAD~1 HEAD | grep -q "^package.json$" && echo "true" || echo "false"
+            )
+          else
+            PREV_COMMIT=$(git rev-parse HEAD)
+            PACKAGE_JSON_CHANGED=$(
+              git show --pretty='' --name-only HEAD | grep -q "^package.json$" && echo "true" || echo "false"
+            )
+          fi
 
-          # Check if package.json changed
-          if git diff --name-only HEAD~1 HEAD | grep "package.json"; then
+          if [[ "$PACKAGE_JSON_CHANGED" == "true" ]]; then
             echo "Package.json was changed in this commit"
-            
+
             # Get previous version if possible
-            if git show "$PREV_COMMIT:package.json" 2>/dev/null; then
+            if git show "$PREV_COMMIT:package.json" >/dev/null 2>&1; then
               PREV_VERSION=$(git show "$PREV_COMMIT:package.json" | jq -r .version)
               echo "Previous version: $PREV_VERSION"
-              
+
               if [ "$CURRENT_VERSION" != "$PREV_VERSION" ]; then
                 echo "Version changed from $PREV_VERSION to $CURRENT_VERSION"
-                echo "should_publish=true" >> $GITHUB_OUTPUT
+                echo "should_publish=true" >> "$GITHUB_OUTPUT"
               else
                 echo "Version unchanged"
-                echo "should_publish=false" >> $GITHUB_OUTPUT
+                echo "should_publish=false" >> "$GITHUB_OUTPUT"
               fi
             else
               echo "First commit with package.json, will publish"
-              echo "should_publish=true" >> $GITHUB_OUTPUT
+              echo "should_publish=true" >> "$GITHUB_OUTPUT"
             fi
           else
             echo "Package.json not changed in this commit"
-            echo "should_publish=false" >> $GITHUB_OUTPUT
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
           fi
 
-          echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "version=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
 
   publish:
     needs: verify_version
@@ -72,10 +86,19 @@ jobs:
 
       - name: Create Git tag
         run: |
+          TAG_NAME="v${{ needs.verify_version.outputs.version }}"
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "v${{ needs.verify_version.outputs.version }}" -m "Release v${{ needs.verify_version.outputs.version }}"
-          git push origin "v${{ needs.verify_version.outputs.version }}"
+
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG_NAME}" >/dev/null 2>&1; then
+            echo "Tag ${TAG_NAME} already exists on origin; skipping tag creation"
+          elif git rev-parse "${TAG_NAME}" >/dev/null 2>&1; then
+            echo "Tag ${TAG_NAME} already exists locally; skipping tag push"
+          else
+            git tag -a "${TAG_NAME}" -m "Release ${TAG_NAME}"
+            git push origin "${TAG_NAME}"
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -89,7 +112,16 @@ jobs:
         run: bun run build
 
       - name: Publish to npm
-        run: bun publish
+        run: |
+          VERSION="${{ needs.verify_version.outputs.version }}"
+          DIST_TAG="latest"
+
+          if [[ "$VERSION" =~ -([A-Za-z0-9]+) ]]; then
+            DIST_TAG="${BASH_REMATCH[1]}"
+          fi
+
+          echo "Publishing ${VERSION} with dist-tag ${DIST_TAG}"
+          bun publish --access public --tag "${DIST_TAG}" --tolerate-republish
         env:
           NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
 
