@@ -325,15 +325,22 @@ export class MessageManager {
 			return;
 		}
 
-		if (
-			this.discordSettings.shouldIgnoreDirectMessages &&
-			message.channel.type === DiscordChannelType.DM
-		) {
-			return;
-		}
-
 		// DM policy check - applies access control policies for direct messages
 		if (message.channel.type === DiscordChannelType.DM) {
+			const userId = message.author.id;
+			if (this.discordSettings.shouldIgnoreDirectMessages) {
+				const staticallyAllowed =
+					this.discordSettings.allowFrom?.includes(userId) === true;
+				const dynamicallyAllowed = await isInAllowlist(
+					this.runtime,
+					"discord",
+					userId,
+				);
+				if (!staticallyAllowed && !dynamicallyAllowed) {
+					return;
+				}
+			}
+
 			const accessCheck = await this.checkDmAccess(message);
 			if (!accessCheck.allowed) {
 				// If a reply message was generated (new pairing request), send it
@@ -629,6 +636,18 @@ export class MessageManager {
 				: null;
 			let typingStarted = false;
 			let responseEmitted = false;
+			let generationTimedOut = false;
+			const generationTimeoutMs = Math.max(
+				30_000,
+				Number.parseInt(
+					String(
+						this.runtime.getSetting("DISCORD_GENERATION_TIMEOUT_MS") ??
+							this.runtime.getSetting("MESSAGE_TIMEOUT_MS") ??
+							"120000",
+					),
+					10,
+				) || 120_000,
+			);
 
 			const finalizePendingDraft = async () => {
 				if (draftStream?.isStarted() && !draftStream.isDone()) {
@@ -640,6 +659,34 @@ export class MessageManager {
 				if (draftStream?.isStarted() && !draftStream.isDone()) {
 					await draftStream.abort(
 						"An error occurred while generating the response.",
+					);
+				}
+			};
+
+			const sendFailureReply = async (text: string) => {
+				try {
+					await channel.send({
+						content: text,
+						...(outboundReplyToMessageId && replyToMode !== "off"
+							? {
+									reply: {
+										messageReference: outboundReplyToMessageId,
+									},
+								}
+							: {}),
+					});
+					responseEmitted = true;
+				} catch (sendError) {
+					this.runtime.logger.warn(
+						{
+							src: "plugin:discord",
+							agentId: this.runtime.agentId,
+							error:
+								sendError instanceof Error
+									? sendError.message
+									: String(sendError),
+						},
+						"Failed to send Discord failure reply",
 					);
 				}
 			};
@@ -663,6 +710,9 @@ export class MessageManager {
 
 			const callback: HandlerCallback = async (content: Content) => {
 				try {
+					if (generationTimedOut) {
+						return [];
+					}
 					// target is set but not addressed to us handling
 					if (
 						content.target &&
@@ -932,40 +982,87 @@ export class MessageManager {
 
 			const messagingAPI = getMessagingAPI(this.runtime);
 			const messageService = getMessageService(this.runtime);
+			let generationTimeoutHandle: ReturnType<typeof setTimeout> | undefined;
+			try {
+				const generationPromise = (async () => {
+					if (messageService) {
+						this.runtime.logger.debug(
+							{ src: "plugin:discord", agentId: this.runtime.agentId },
+							"Using messageService API",
+						);
+						await messageService.handleMessage(this.runtime, newMessage, callback);
+					} else if (messagingAPI?.handleMessage) {
+						this.runtime.logger.debug(
+							{ src: "plugin:discord", agentId: this.runtime.agentId },
+							"Using messaging API handleMessage",
+						);
+						await messagingAPI.handleMessage(this.runtime.agentId, newMessage, {
+							onResponse: callback,
+						});
+					} else if (messagingAPI?.sendMessage) {
+						this.runtime.logger.debug(
+							{ src: "plugin:discord", agentId: this.runtime.agentId },
+							"Using messaging API sendMessage",
+						);
+						await messagingAPI.sendMessage(this.runtime.agentId, newMessage, {
+							onResponse: callback,
+						});
+					} else {
+						this.runtime.logger.debug(
+							{ src: "plugin:discord", agentId: this.runtime.agentId },
+							"Using event-based message handling",
+						);
+						await this.runtime.emitEvent([EventType.MESSAGE_RECEIVED], {
+							runtime: this.runtime,
+							message: newMessage,
+							callback,
+							source: "discord",
+						});
+					}
+				})();
 
-			if (messageService) {
-				this.runtime.logger.debug(
-					{ src: "plugin:discord", agentId: this.runtime.agentId },
-					"Using messageService API",
-				);
-				await messageService.handleMessage(this.runtime, newMessage, callback);
-			} else if (messagingAPI?.handleMessage) {
-				this.runtime.logger.debug(
-					{ src: "plugin:discord", agentId: this.runtime.agentId },
-					"Using messaging API handleMessage",
-				);
-				await messagingAPI.handleMessage(this.runtime.agentId, newMessage, {
-					onResponse: callback,
+				const timeoutPromise = new Promise<never>((_, reject) => {
+					generationTimeoutHandle = setTimeout(() => {
+						generationTimedOut = true;
+						reject(
+							new Error(
+								`Discord generation timeout after ${generationTimeoutMs}ms`,
+							),
+						);
+					}, generationTimeoutMs);
 				});
-			} else if (messagingAPI?.sendMessage) {
-				this.runtime.logger.debug(
-					{ src: "plugin:discord", agentId: this.runtime.agentId },
-					"Using messaging API sendMessage",
+
+				await Promise.race([generationPromise, timeoutPromise]);
+			} catch (generationError) {
+				this.runtime.logger.error(
+					{
+						src: "plugin:discord",
+						agentId: this.runtime.agentId,
+						messageId: message.id,
+						timeoutMs: generationTimeoutMs,
+						error:
+							generationError instanceof Error
+								? generationError.message
+								: String(generationError),
+					},
+					"Discord generation failed or timed out",
 				);
-				await messagingAPI.sendMessage(this.runtime.agentId, newMessage, {
-					onResponse: callback,
-				});
-			} else {
-				this.runtime.logger.debug(
-					{ src: "plugin:discord", agentId: this.runtime.agentId },
-					"Using event-based message handling",
-				);
-				await this.runtime.emitEvent([EventType.MESSAGE_RECEIVED], {
-					runtime: this.runtime,
-					message: newMessage,
-					callback,
-					source: "discord",
-				});
+				typingController.stop();
+				statusReactions?.setError();
+				await abortPendingDraft();
+
+				if (!responseEmitted) {
+					await sendFailureReply(
+						generationTimedOut
+							? "I timed out while generating that reply. Please retry."
+							: "I hit a provider issue while generating the reply. Please retry.",
+					);
+				}
+				return;
+			} finally {
+				if (generationTimeoutHandle) {
+					clearTimeout(generationTimeoutHandle);
+				}
 			}
 
 			if (!responseEmitted) {

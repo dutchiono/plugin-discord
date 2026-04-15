@@ -25,15 +25,15 @@ function getEnvArray(name: string, fallback: string[]): string[] {
 export const DISCORD_DEFAULTS = {
 	SHOULD_IGNORE_BOT_MESSAGES: getEnvBoolean(
 		"DISCORD_SHOULD_IGNORE_BOT_MESSAGES",
-		false,
+		true,
 	),
 	SHOULD_IGNORE_DIRECT_MESSAGES: getEnvBoolean(
 		"DISCORD_SHOULD_IGNORE_DIRECT_MESSAGES",
-		false,
+		true,
 	),
 	SHOULD_RESPOND_ONLY_TO_MENTIONS: getEnvBoolean(
 		"DISCORD_SHOULD_RESPOND_ONLY_TO_MENTIONS",
-		false,
+		true,
 	),
 	ALLOWED_CHANNEL_IDS: getEnvArray("CHANNEL_IDS", []),
 	DM_POLICY: (process.env?.DISCORD_DM_POLICY || "pairing") as

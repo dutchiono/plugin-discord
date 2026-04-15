@@ -225,6 +225,30 @@ function filterDefined<T extends object>(obj: T): Partial<T> {
 	) as Partial<T>;
 }
 
+function parseOptionalBooleanSetting(
+	runtime: IAgentRuntime,
+	key: string,
+): boolean | undefined {
+	const value = runtime.getSetting(key);
+	if (value === undefined || value === null) {
+		return undefined;
+	}
+	if (typeof value === "boolean") {
+		return value;
+	}
+	const normalized = String(value).trim().toLowerCase();
+	if (!normalized) {
+		return undefined;
+	}
+	if (normalized === "true" || normalized === "1") {
+		return true;
+	}
+	if (normalized === "false" || normalized === "0") {
+		return false;
+	}
+	return undefined;
+}
+
 /**
  * Merges base configuration with account-specific overrides
  */
@@ -243,18 +267,18 @@ function mergeDiscordAccountConfig(
 	) as string | undefined;
 
 	const envConfig: DiscordAccountConfig = {
-		shouldIgnoreBotMessages:
-			(
-				runtime.getSetting("DISCORD_SHOULD_IGNORE_BOT_MESSAGES") as string
-			)?.toLowerCase() === "true",
-		shouldIgnoreDirectMessages:
-			(
-				runtime.getSetting("DISCORD_SHOULD_IGNORE_DIRECT_MESSAGES") as string
-			)?.toLowerCase() === "true",
-		shouldRespondOnlyToMentions:
-			(
-				runtime.getSetting("DISCORD_SHOULD_RESPOND_ONLY_TO_MENTIONS") as string
-			)?.toLowerCase() === "true",
+		shouldIgnoreBotMessages: parseOptionalBooleanSetting(
+			runtime,
+			"DISCORD_SHOULD_IGNORE_BOT_MESSAGES",
+		),
+		shouldIgnoreDirectMessages: parseOptionalBooleanSetting(
+			runtime,
+			"DISCORD_SHOULD_IGNORE_DIRECT_MESSAGES",
+		),
+		shouldRespondOnlyToMentions: parseOptionalBooleanSetting(
+			runtime,
+			"DISCORD_SHOULD_RESPOND_ONLY_TO_MENTIONS",
+		),
 		channelIds: envChannelIds
 			? envChannelIds
 					.split(",")
