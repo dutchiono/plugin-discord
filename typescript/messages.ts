@@ -1032,6 +1032,7 @@ export class MessageManager {
 					}, generationTimeoutMs);
 				});
 
+				generationPromise.catch(() => {});
 				await Promise.race([generationPromise, timeoutPromise]);
 			} catch (generationError) {
 				this.runtime.logger.error(
